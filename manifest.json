@@ -1,0 +1,12 @@
+{
+  "domain": "wind_udp_receiver",
+  "name": "Wind UDP Receiver", 
+  "version": "1.0.0",
+  "documentation": "",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": [],
+  "config_flow": true,
+  "integration_type": "service"
+}
+
