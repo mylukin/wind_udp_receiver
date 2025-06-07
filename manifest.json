@@ -1,7 +1,7 @@
 {
   "domain": "wind_udp_receiver",
   "name": "Wind UDP Receiver",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/mylukin/wind_udp_receiver",
   "issue_tracker": "https://github.com/mylukin/wind_udp_receiver/issues",
   "dependencies": [],

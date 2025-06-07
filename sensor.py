@@ -337,6 +337,9 @@ class LastUpdateSensor(BaseWindSensor):
             hass, entry_id, "最后更新", "Last Update", "last_update", "mdi:clock-outline"
         )
         self._attr_native_value = "从未更新"
+        # 禁用历史记录
+        self._attr_state_class = None
+        self._attr_force_update = True
         
     def _handle_wind_data(self, wind_data: Dict[str, Any]) -> None:
         """处理更新时间"""
