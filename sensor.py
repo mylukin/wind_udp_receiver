@@ -98,6 +98,8 @@ class WindSpeedSensor(BaseWindSensor):
         )
         self._attr_native_unit_of_measurement = UnitOfSpeed.METERS_PER_SECOND
         self._attr_device_class = SensorDeviceClass.WIND_SPEED
+        # 确保默认显示单位为 m/s
+        self._attr_suggested_unit_of_measurement = UnitOfSpeed.METERS_PER_SECOND
         
     def _handle_wind_data(self, wind_data: Dict[str, Any]) -> None:
         """处理风速数据"""
