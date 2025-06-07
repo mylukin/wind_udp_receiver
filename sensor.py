@@ -7,6 +7,7 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, Union
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN, WIND_DIRECTION_MAP, WIND_LEVEL_MAP, BEAUFORT_SCALE_THRESHOLDS,
@@ -315,7 +316,7 @@ class DeviceStatusSensor(SensorEntity):
             
             current_time = asyncio.get_event_loop().time()
             offline_duration = current_time - self._last_activity
-            last_activity_dt = datetime.fromtimestamp(self._last_activity)
+            last_activity_dt = dt_util.utc_from_timestamp(self._last_activity).astimezone(dt_util.DEFAULT_TIME_ZONE)
             
             return {
                 "last_activity": last_activity_dt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -339,6 +340,7 @@ class LastUpdateSensor(BaseWindSensor):
         
     def _handle_wind_data(self, wind_data: Dict[str, Any]) -> None:
         """处理更新时间"""
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 使用Home Assistant的时区感知时间
+        current_time = dt_util.now().strftime("%Y-%m-%d %H:%M:%S")
         self._update_state(current_time, f"数据更新时间: {current_time}")
 
