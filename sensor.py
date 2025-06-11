@@ -250,7 +250,7 @@ class DeviceStatusSensor(SensorEntity):
     def __init__(self, hass: HomeAssistant, entry_id: str):
         self.hass = hass
         self.entry_id = entry_id
-        self._attr_name = "Device Status"
+        self._attr_name = "Wind Device Status"
         self._attr_unique_id = f"{DOMAIN}_wind_device_status_{entry_id}"
         self._attr_native_value = "等待连接"
         self._attr_should_poll = True
@@ -354,7 +354,7 @@ class LastUpdateSensor(BaseWindSensor):
     
     def __init__(self, hass: HomeAssistant, entry_id: str):
         super().__init__(
-            hass, entry_id, "最后更新", "Last Update", "wind_last_update", "mdi:clock-outline"
+            hass, entry_id, "最后更新", "Wind Last Update", "wind_last_update", "mdi:clock-outline"
         )
         self._attr_native_value = "从未更新"
         # 禁用历史记录
