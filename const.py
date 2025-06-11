@@ -12,13 +12,8 @@ MODBUS_FUNCTION_CODE = 0x03
 MODBUS_DATA_LENGTH = 8
 MODBUS_EXPECTED_LENGTH = 13  # 3字节头部 + 8字节数据 + 2字节CRC
 
-# ZQWL 设备配置
-ZQWL_PACKET_LENGTH = 17
-ZQWL_HEADER = b'\x00\x00\x00\x00\x00\x0b'
-
 # 客户端状态配置
-OFFLINE_THRESHOLD = 300  # 5分钟离线阈值 (秒)
-DEVICE_STATUS_UPDATE_INTERVAL = 60  # 设备状态更新间隔 (秒)
+OFFLINE_THRESHOLD = 60  # 统一离线阈值 (秒)
 
 # 数据转换配置
 WIND_SPEED_SCALE = 10.0     # 风速除数因子

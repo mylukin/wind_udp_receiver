@@ -1,17 +1,18 @@
+import asyncio
+import logging
+from typing import Dict, Any, Optional, Union
+
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfSpeed
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import UnitOfSpeed
-import logging
-import asyncio
-from datetime import datetime
-from typing import Dict, Any, Optional, Union
 from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN, WIND_DIRECTION_MAP, WIND_LEVEL_MAP, BEAUFORT_SCALE_THRESHOLDS,
-    DIRECTION_ANGLE_RANGES, WIND_SPEED_SCALE, WIND_DIRECTION_SCALE
+    DIRECTION_ANGLE_RANGES, WIND_SPEED_SCALE, WIND_DIRECTION_SCALE,
+    OFFLINE_THRESHOLD
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -222,16 +223,18 @@ class WindDirectionCodeSensor(BaseWindSensor):
                 f"风向编码更新为 0x{wind_direction_code:02X} -> {direction_name}"
             )
     
+    def _find_direction_code(self, direction_name: str) -> Optional[int]:
+        """根据方向名称查找对应的编码"""
+        for code_val, name in WIND_DIRECTION_MAP.items():
+            if name == str(direction_name):
+                return code_val
+        return None
+    
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
         """返回额外状态属性"""
         if self._attr_native_value:
-            # 从风向名称反推编码
-            code = None
-            for code_val, name in WIND_DIRECTION_MAP.items():
-                if name == str(self._attr_native_value):
-                    code = code_val
-                    break
+            code = self._find_direction_code(self._attr_native_value)
             
             return {
                 "direction_name": self._attr_native_value,
@@ -253,7 +256,7 @@ class DeviceStatusSensor(SensorEntity):
         self._attr_should_poll = True
         self._attr_icon = "mdi:connection"
         self._last_activity = None
-        self._offline_threshold = 10  # 离线阈值（秒）
+        self._offline_threshold = OFFLINE_THRESHOLD  # 离线阈值（秒）
         
     async def async_added_to_hass(self) -> None:
         """注册事件监听"""
@@ -286,25 +289,40 @@ class DeviceStatusSensor(SensorEntity):
     def _update_status(self) -> None:
         """更新设备状态"""
         try:
-            if self._last_activity is None:
-                self._attr_native_value = "等待连接"
-                self._attr_icon = "mdi:connection"
-            else:
-                current_time = asyncio.get_event_loop().time()
-                offline_duration = current_time - self._last_activity
-                
-                if offline_duration < self._offline_threshold:
-                    self._attr_native_value = "在线"
-                    self._attr_icon = "mdi:check-network"
-                else:
-                    minutes_offline = int(offline_duration // 60)
-                    self._attr_native_value = f"离线 {minutes_offline}分钟"
-                    self._attr_icon = "mdi:network-off"
-            
+            status_info = self._calculate_device_status()
+            self._apply_status_update(status_info)
             self.async_write_ha_state()
         except Exception as e:
             _LOGGER.error(f"状态更新失败: {e}")
+    
+    def _calculate_device_status(self) -> Dict[str, str]:
+        """计算设备状态信息"""
+        if self._last_activity is None:
+            return {
+                "value": "等待连接",
+                "icon": "mdi:connection"
+            }
         
+        current_time = asyncio.get_event_loop().time()
+        offline_duration = current_time - self._last_activity
+        
+        if offline_duration < self._offline_threshold:
+            return {
+                "value": "在线",
+                "icon": "mdi:check-network"
+            }
+        else:
+            minutes_offline = int(offline_duration // 60)
+            return {
+                "value": f"离线 {minutes_offline}分钟",
+                "icon": "mdi:network-off"
+            }
+    
+    def _apply_status_update(self, status_info: Dict[str, str]) -> None:
+        """应用状态更新"""
+        self._attr_native_value = status_info["value"]
+        self._attr_icon = status_info["icon"]
+    
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
         """返回额外状态属性"""

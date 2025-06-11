@@ -3,15 +3,16 @@ import json
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     DOMAIN, PLATFORMS, MODBUS_DEVICE_ADDR, MODBUS_FUNCTION_CODE, 
-    MODBUS_DATA_LENGTH, MODBUS_EXPECTED_LENGTH, ZQWL_PACKET_LENGTH, 
-    ZQWL_HEADER, OFFLINE_THRESHOLD, HEARTBEAT_INDICATORS, 
-    REGISTRATION_INDICATORS, WIND_SPEED_SCALE, WIND_DIRECTION_SCALE
+    MODBUS_DATA_LENGTH, MODBUS_EXPECTED_LENGTH, OFFLINE_THRESHOLD, 
+    HEARTBEAT_INDICATORS, REGISTRATION_INDICATORS, WIND_SPEED_SCALE, 
+    WIND_DIRECTION_SCALE
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -212,25 +213,32 @@ class UDPProtocol(asyncio.DatagramProtocol):
                 self._update_client_status(addr, 'wind_sensor')
                 
                 # 触发风力数据事件
-                event_data = {
-                    'event_type': 'wind_data_received',
-                    'wind_data': wind_data,
-                    'timestamp': json_data.get('timestamp'),
-                    'source_addr': addr
-                }
-                
-                self.hass.bus.async_fire(f'{DOMAIN}_event', event_data)
+                self._fire_wind_data_event(wind_data, json_data.get('timestamp'), addr)
                 
                 # 记录风力数据
-                wind_speed = wind_data.get('0', 0) / WIND_SPEED_SCALE
-                wind_direction = wind_data.get('2', 0) / WIND_DIRECTION_SCALE
-                wind_level = wind_data.get('1', 0)
-                _LOGGER.info(f"风力数据更新 from {addr}: 风速={wind_speed:.1f}m/s, 风向={wind_direction:.1f}°, 风级={wind_level}")
+                self._log_wind_data(wind_data, addr)
             
         except json.JSONDecodeError:
             _LOGGER.debug(f"收到非JSON风力数据 from {addr}: {data[:50]}")
         except Exception as e:
             _LOGGER.error(f"处理风力数据失败 from {addr}: {e}")
+    
+    def _fire_wind_data_event(self, wind_data: Dict[str, Any], timestamp: str, addr: str) -> None:
+        """触发风力数据事件"""
+        event_data = {
+            'event_type': 'wind_data_received',
+            'wind_data': wind_data,
+            'timestamp': timestamp,
+            'source_addr': addr
+        }
+        self.hass.bus.async_fire(f'{DOMAIN}_event', event_data)
+    
+    def _log_wind_data(self, wind_data: Dict[str, Any], addr: str) -> None:
+        """记录风力数据"""
+        wind_speed = wind_data.get('0', 0) / WIND_SPEED_SCALE
+        wind_direction = wind_data.get('2', 0) / WIND_DIRECTION_SCALE
+        wind_level = wind_data.get('1', 0)
+        _LOGGER.info(f"风力数据更新 from {addr}: 风速={wind_speed:.1f}m/s, 风向={wind_direction:.1f}°, 风级={wind_level}")
     
     def _handle_heartbeat(self, data: str, addr: str) -> None:
         """处理心跳包"""
@@ -239,13 +247,16 @@ class UDPProtocol(asyncio.DatagramProtocol):
         self._update_client_status(addr, 'heartbeat')
         
         # 触发心跳事件
+        self._fire_heartbeat_event(data, addr)
+    
+    def _fire_heartbeat_event(self, data: str, addr: str) -> None:
+        """触发心跳事件"""
         event_data = {
             'event_type': 'device_heartbeat',
             'device_addr': addr,
             'heartbeat_data': data[:100],
             'timestamp': asyncio.get_event_loop().time()
         }
-        
         self.hass.bus.async_fire(f'{DOMAIN}_event', event_data)
     
     def _handle_registration(self, data: str, addr: str) -> None:
@@ -255,13 +266,16 @@ class UDPProtocol(asyncio.DatagramProtocol):
         self._update_client_status(addr, 'registration', {'registration_data': data})
         
         # 触发注册事件
+        self._fire_registration_event(data, addr)
+    
+    def _fire_registration_event(self, data: str, addr: str) -> None:
+        """触发注册事件"""
         event_data = {
             'event_type': 'device_registered',
             'device_addr': addr,
             'registration_data': data,
             'timestamp': asyncio.get_event_loop().time()
         }
-        
         self.hass.bus.async_fire(f'{DOMAIN}_event', event_data)
     
     def _update_client_status(self, addr: str, client_type: str, extra_data: Optional[Dict] = None) -> None:
@@ -311,10 +325,6 @@ class ModBusDataParser:
         if self._is_standard_modbus(data):
             return self._parse_standard_modbus(data)
         
-        # 检查ZQWL UDP格式
-        if self._is_zqwl_udp_data(data):
-            return self._parse_zqwl_udp_data(data)
-        
         return None
     
     def _is_standard_modbus(self, data: bytes) -> bool:
@@ -331,13 +341,6 @@ class ModBusDataParser:
                 return len(data) == expected_length and data_length == MODBUS_DATA_LENGTH
         
         return False
-    
-    def _is_zqwl_udp_data(self, data: bytes) -> bool:
-        """检查是否为ZQWL UDP数据格式"""
-        return (len(data) == ZQWL_PACKET_LENGTH and 
-                data[:6] == ZQWL_HEADER and
-                data[7] == MODBUS_FUNCTION_CODE and 
-                data[8] == MODBUS_DATA_LENGTH)
     
     def _parse_standard_modbus(self, data: bytes) -> Optional[str]:
         """解析标准ModBus RTU数据"""
@@ -358,48 +361,50 @@ class ModBusDataParser:
             _LOGGER.error(f"标准ModBus数据解析失败: {e}")
             return None
     
-    def _parse_zqwl_udp_data(self, data: bytes) -> Optional[str]:
-        """解析ZQWL UDP数据格式"""
-        try:
-            if len(data) < ZQWL_PACKET_LENGTH:
-                return None
-            
-            device_addr, function_code, data_length = data[6], data[7], data[8]
-            register_data = data[9:17]  # 8字节寄存器数据
-            
-            _LOGGER.debug(f"ZQWL解析: 设备=0x{device_addr:02X}, 功能码=0x{function_code:02X}, "
-                         f"数据长度={data_length}, 寄存器={register_data.hex()}")
-            
-            return self._parse_register_data(register_data)
-            
-        except Exception as e:
-            _LOGGER.error(f"ZQWL UDP数据解析失败: {e}")
-            return None
-    
     def _parse_register_data(self, register_data: bytes) -> str:
         """解析寄存器数据"""
         if len(register_data) < 8:
             raise ValueError("寄存器数据长度不足")
         
         # 解析4个寄存器（每个2字节，大端序）
-        wind_speed_raw = int.from_bytes(register_data[0:2], 'big')
-        wind_level = int.from_bytes(register_data[2:4], 'big')
-        wind_direction_raw = int.from_bytes(register_data[4:6], 'big')
-        wind_direction_code = int.from_bytes(register_data[6:8], 'big')
+        wind_values = self._extract_wind_values(register_data)
         
         # 构建JSON数据
-        wind_json = {
-            "wind_data": {
-                "0": wind_speed_raw,      # 原始风速值
-                "1": wind_level,          # 风级
-                "2": wind_direction_raw,  # 原始风向角度值
-                "3": wind_direction_code  # 风向编码
-                        },
-            "timestamp": datetime.now().isoformat()
-        }
+        wind_json = self._build_wind_json(wind_values)
         
-        _LOGGER.debug(f"风力数据解析完成: 风速={wind_speed_raw/WIND_SPEED_SCALE:.1f}m/s, 风级={wind_level}, "
-                     f"风向={wind_direction_raw/WIND_DIRECTION_SCALE:.1f}°, 编码=0x{wind_direction_code:02X}")
+        # 记录解析日志
+        self._log_parsed_data(wind_values)
         
         return json.dumps(wind_json)
+    
+    def _extract_wind_values(self, register_data: bytes) -> Dict[str, int]:
+        """从寄存器数据中提取风力数值"""
+        return {
+            'wind_speed_raw': int.from_bytes(register_data[0:2], 'big'),
+            'wind_level': int.from_bytes(register_data[2:4], 'big'),
+            'wind_direction_raw': int.from_bytes(register_data[4:6], 'big'),
+            'wind_direction_code': int.from_bytes(register_data[6:8], 'big')
+        }
+    
+    def _build_wind_json(self, wind_values: Dict[str, int]) -> Dict[str, Any]:
+        """构建风力数据JSON结构"""
+        return {
+            "wind_data": {
+                "0": wind_values['wind_speed_raw'],      # 原始风速值
+                "1": wind_values['wind_level'],          # 风级
+                "2": wind_values['wind_direction_raw'],  # 原始风向角度值
+                "3": wind_values['wind_direction_code']  # 风向编码
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def _log_parsed_data(self, wind_values: Dict[str, int]) -> None:
+        """记录解析后的数据"""
+        wind_speed_ms = wind_values['wind_speed_raw'] / WIND_SPEED_SCALE
+        wind_direction_deg = wind_values['wind_direction_raw'] / WIND_DIRECTION_SCALE
+        wind_level = wind_values['wind_level']
+        wind_direction_code = wind_values['wind_direction_code']
+        
+        _LOGGER.debug(f"风力数据解析完成: 风速={wind_speed_ms:.1f}m/s, 风级={wind_level}, "
+                     f"风向={wind_direction_deg:.1f}°, 编码=0x{wind_direction_code:02X}")
 

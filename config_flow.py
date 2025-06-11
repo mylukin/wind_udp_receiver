@@ -1,7 +1,6 @@
 import voluptuous as vol
-from homeassistant import config_entries
-from homeassistant.core import callback
 import logging
+from homeassistant import config_entries
 
 from .const import DOMAIN, DEFAULT_CONFIG
 
