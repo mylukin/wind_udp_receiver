@@ -90,8 +90,8 @@ git clone https://github.com/mylukin/wind_udp_receiver.git
 | Wind Level | `sensor.wind_level` | 级 | 蒲福风力等级 |
 | Wind Direction Angle | `sensor.wind_direction_angle` | ° | 风向角度 (0°=北) |
 | Wind Direction Code | `sensor.wind_direction_code` | - | 16方位风向 |
-| Device Status | `sensor.device_status` | - | 设备连接状态 |
-| Last Update | `sensor.last_update` | - | 最后更新时间 |
+| Device Status | `sensor.wind_device_status` | - | 设备连接状态 |
+| Last Update | `sensor.wind_last_update` | - | 最后更新时间 |
 
 ### 额外属性
 
@@ -145,7 +145,7 @@ automation:
   - alias: "风力传感器离线告警"
     trigger:
       platform: state
-      entity_id: sensor.device_status
+      entity_id: sensor.wind_device_status
       to: "离线"
     action:
       service: persistent_notification.create

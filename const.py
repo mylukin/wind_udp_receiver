@@ -62,51 +62,6 @@ REGISTRATION_INDICATORS = [
     'register', 'registration', 'connect', 'login', 'device_info', 'client_info'
 ]
 
-# 传感器配置
-SENSOR_CONFIGS = {
-    'wind_speed': {
-        'name': 'Wind Speed',
-        'unique_id': 'wind_speed',
-        'icon': 'mdi:weather-windy',
-        'unit': 'm/s',
-        'device_class': 'wind_speed'
-    },
-    'wind_level': {
-        'name': 'Wind Level', 
-        'unique_id': 'wind_level',
-        'icon': 'mdi:windsock',
-        'unit': '级'
-    },
-    'wind_direction': {
-        'name': 'Wind Direction Angle',
-        'unique_id': 'wind_direction', 
-        'icon': 'mdi:compass',
-        'unit': '°'
-    },
-    'wind_direction_code': {
-        'name': 'Wind Direction Code',
-        'unique_id': 'wind_direction_code',
-        'icon': 'mdi:compass-rose'
-    },
-    'device_status': {
-        'name': 'Device Status',
-        'unique_id': 'device_status',
-        'icon': 'mdi:connection'
-    },
-    'last_update': {
-        'name': 'Last Update',
-        'unique_id': 'last_update', 
-        'icon': 'mdi:clock-outline'
-    }
-}
-
-# 事件类型
-EVENT_TYPES = {
-    'WIND_DATA_RECEIVED': 'wind_data_received',
-    'DEVICE_HEARTBEAT': 'device_heartbeat',
-    'DEVICE_REGISTERED': 'device_registered'
-}
-
 # 默认配置
 DEFAULT_CONFIG = {
     'port': 8888,
